@@ -11,8 +11,6 @@ Django 프레임워크로 만든 지출 내역을 관리할 수 있는 간단한
 - 가계부 지출내역 리스트 보기
 - 가계부 지출내역 상세보기
 
-## Schema
-
 ## Language & Framework
 - Python 3.9
 - Django 3.2.10
