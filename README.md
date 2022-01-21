@@ -16,7 +16,7 @@ Django 프레임워크로 만든 지출 내역을 관리할 수 있는 간단한
 ## Language & Framework
 - Python 3.9
 - Django 3.2.10
-- mysql 5.7
+- mysql 5.7 (DDL 파일은 8.0버전으로 되어 있으나 연동 RDS는 5.7버전으로 운영됨)
 
 ## Summary
 RESTful하게 구현하였다. 로그인 시 Authorization header로 사용할 수 있는 token을 발급한다. 
