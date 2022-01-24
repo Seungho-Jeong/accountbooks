@@ -2,7 +2,9 @@ import json
 
 from json import JSONDecodeError
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views import View
@@ -11,7 +13,7 @@ from .models import Expense, DeletedExpense
 
 from utils.decorators import login_decorator
 from utils.validators import validate_expense
-from utils.exceptions import PermissionException, DataTypeException, DataTooLongException
+from utils.exceptions import PermissionException, DataTypeException, DataTooLongException, InvalidValueException
 
 
 class ExpenseListView(View):
@@ -19,6 +21,7 @@ class ExpenseListView(View):
     가계부 지출내역 리스트 뷰.
 
     유효한 인가 token 보유자에 한하여 본인이 작성한 지출내역을 출력한다.
+    키워드(keyword), 날짜(date), 기간조회(due)를 할 수 있다.
     """
 
     @login_decorator
@@ -29,15 +32,22 @@ class ExpenseListView(View):
         token decoding 값에 포함된 `user_id`와 매칭되는 지출 내역을 반환한다.
         인가 확인 동작은 `login_decorator`가 수행한다.
 
+        쿼리 파마리터를 조합하여 키워드(keyword), 날짜(date), 기간조회(due)를 수행할 수 있다.
+
         parameter
         ---------
         request: nothing.
+        query parameters
+            keyword: str
+            date: str (yyyy-mm-dd)
+            start-date: str (yyyy-mm-dd)
+            end-date: str (yyyy-mm-dd)
 
         returns
         -------
         JsonResponse: list of JSON
             id: int
-            date: str(datetime)
+            date: str (yyyy-mm-dd)
             title: str
             amount: int
             status code:
@@ -47,9 +57,31 @@ class ExpenseListView(View):
                 405: not allowed method
         """
 
-        expenses = Expense.objects.filter(user_id=request.user.id)
-        expenses = [expense for expense in expenses.values('id', 'date', 'title', 'amount')]
-        return JsonResponse({"expenses": expenses}, status=200)
+        try:
+            query = Q()
+            queryset = Expense.objects.filter(user_id=request.user.id)
+            keyword = request.GET.get('keyword', None)
+            date = request.GET.get('date', None)
+            due_stt = request.GET.get('start-date', None)
+            due_end = request.GET.get('end-date', None)
+
+            if keyword:
+                query = Q(title__contains=keyword)
+            if date:
+                query = Q(date=date)
+            if due_stt and due_end:
+                if due_stt < due_end:
+                    raise InvalidValueException(message="'end-date' must greater than 'start-date'.")
+                query = Q(date__gte=due_stt) & Q(date__lte=due_end)
+
+            expenses = queryset.filter(query)
+            expenses = [expense for expense in expenses.values('id', 'date', 'title', 'amount')]
+            return JsonResponse({"expenses": expenses}, status=200)
+
+        except InvalidValueException as e:
+            return JsonResponse({"error": e.message}, status=e.status)
+        except ValidationError as e:
+            return JsonResponse({"error": "%s" % e}, status=400)
 
 
 class ExpenseNewView(View):
